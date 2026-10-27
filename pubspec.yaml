@@ -1,0 +1,78 @@
+name: dostigator
+description: Приложение резидента экосистемы «Достигатор»
+publish_to: 'none'
+
+version: 0.12.0+13
+
+environment:
+  sdk: ^3.12.0
+
+dependencies:
+  flutter:
+    sdk: flutter
+  flutter_localizations:
+    sdk: flutter
+
+  # Сеть
+  dio: ^5.7.0
+
+  # Токен доступа — только в защищённом хранилище системы,
+  # не в SharedPreferences: оттуда его достанет любое приложение с root.
+  flutter_secure_storage: ^9.2.2
+
+  # Состояние
+  provider: ^6.1.2
+
+  # QR карты резидента
+  qr_flutter: ^4.1.0
+
+  # Переход в WhatsApp и Telegram из каталога резидентов
+  url_launcher: ^6.3.1
+
+  # Разговор с браузером об уведомлениях в веб-версии (в том числе
+  # на айфоне). Пакет и так приезжал вместе с Flutter — здесь он
+  # назван прямо, потому что теперь мы зовём его сами.
+  web: ^1.1.1
+
+  # Русские даты и разделители разрядов
+  intl: ^0.20.2
+
+  # Еженедельное напоминание о чек-ине.
+  # Уведомления планируются на самом устройстве: не нужен ни Firebase,
+  # ни серверная инфраструктура пушей, и работает без сети.
+  #
+  # Версии не ниже этих: сборка идёт на AGP 9, а более старые выпуски
+  # применяют Android-плагин по-старому, и AGP 9 их отвергает.
+  # Разрешение спрашивает сам плагин — permission_handler не нужен.
+  flutter_local_notifications: ^22.3.0
+  timezone: ^0.11.1
+  shared_preferences: ^2.5.6
+  image_picker: ^1.2.4
+  webview_flutter: ^4.14.1
+  webview_flutter_android: ^4.14.1
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^5.0.0
+
+flutter:
+  uses-material-design: true
+
+  assets:
+    - assets/images/
+    - assets/brand/
+
+  fonts:
+    # Фирменный шрифт из брендбука. Файлы лицензионные, лежат в проекте.
+    # Веса: Light 300, Regular 400, Medium 500, Bold 700.
+    - family: Stolzl
+      fonts:
+        - asset: assets/fonts/stolzl_light.otf
+          weight: 300
+        - asset: assets/fonts/stolzl_regular.otf
+          weight: 400
+        - asset: assets/fonts/stolzl_medium.otf
+          weight: 500
+        - asset: assets/fonts/stolzl_bold.otf
+          weight: 700

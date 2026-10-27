@@ -1,0 +1,61 @@
+# Сборка iOS в облаке Codemagic: собрать на Windows нельзя, Xcode есть только на Mac.
+# Результат уходит в TestFlight; отправку на проверку Apple делаем вручную
+# из App Store Connect — после того, как сборку посмотрели живьём.
+#
+# Перед первым запуском в Codemagic:
+#   1. Teams → Integrations → App Store Connect: добавить API-ключ под именем «dostigator»
+#   2. Ниже, в APP_STORE_APPLE_ID, вписать Apple ID приложения
+#      (App Store Connect → приложение → App Information → Apple ID)
+
+workflows:
+  ios-release:
+    name: iOS → TestFlight
+    max_build_duration: 60
+    instance_type: mac_mini_m2
+    integrations:
+      app_store_connect: dostigator
+    environment:
+      ios_signing:
+        distribution_type: app_store
+        bundle_identifier: org.dostigator.dostigator
+      vars:
+        APP_STORE_APPLE_ID: 0000000000
+        # Адрес бэкенда зашивается в сборку, как и в Android (lib/core/api_config.dart)
+        API_BASE_URL: https://api.example.org  # адрес своего сервера
+      # Та же версия, что собирает Android и веб: разные Flutter — разное поведение
+      flutter: 3.44.1
+      xcode: latest
+      cocoapods: default
+    scripts:
+      - name: Подписание — профили App Store
+        script: |
+          xcode-project use-profiles
+      - name: Зависимости Flutter
+        script: |
+          flutter pub get
+      - name: Тесты
+        script: |
+          flutter test
+      - name: Сборка ipa
+        script: |
+          # Номер сборки должен расти с каждой загрузкой. Берём последний из
+          # TestFlight + 1, но не меньше номера из pubspec — на первой загрузке
+          # сборок ещё нет, и команда вернёт ошибку.
+          PUBSPEC_BUILD=$(grep -E '^version:' pubspec.yaml | sed -E 's/.*\+([0-9]+).*/\1/')
+          LATEST=$(app-store-connect get-latest-testflight-build-number "$APP_STORE_APPLE_ID" 2>/dev/null || echo 0)
+          NEXT=$(( LATEST + 1 ))
+          if [ "$NEXT" -lt "$PUBSPEC_BUILD" ]; then NEXT=$PUBSPEC_BUILD; fi
+          echo "Номер сборки: $NEXT"
+
+          flutter build ipa --release \
+            --build-number=$NEXT \
+            --dart-define=API_BASE_URL=$API_BASE_URL \
+            --export-options-plist=/Users/builder/export_options.plist
+    artifacts:
+      - build/ios/ipa/*.ipa
+      - /tmp/xcodebuild_logs/*.log
+    publishing:
+      app_store_connect:
+        auth: integration
+        submit_to_testflight: true
+        submit_to_app_store: false

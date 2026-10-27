@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    DEBUG. Открытый HTTP разрешён, чтобы приложение на телефоне достучалось
+    до локального сервера разработки (php artisan serve по адресу вида
+    http://192.168.x.x:8001). В release-сборку этот файл не попадает.
+-->
+<network-security-config>
+    <base-config cleartextTrafficPermitted="true" />
+</network-security-config>

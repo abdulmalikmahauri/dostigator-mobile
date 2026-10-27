@@ -1,0 +1,21 @@
+include: package:flutter_lints/flutter.yaml
+
+linter:
+  rules:
+    # Ложное срабатывание на наших контроллерах: Dart запрещает приватные
+    # имена у именованных параметров, поэтому `required this._api` написать
+    # нельзя, и присваивание в списке инициализации — единственный вариант.
+    prefer_initializing_formals: false
+
+    # Полезные правила, которых нет в базовом наборе
+    always_declare_return_types: true
+    avoid_print: true
+    prefer_single_quotes: true
+    require_trailing_commas: false
+
+analyzer:
+  errors:
+    # Незакрытый ресурс и неиспользуемый код — ошибки сборки, а не заметки
+    unused_import: error
+    unused_local_variable: error
+    dead_code: error

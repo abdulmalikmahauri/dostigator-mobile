@@ -1,0 +1,1041 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+
+  <title>Достигатор на компьютере</title>
+  <meta name="description" content="Приложение «Достигатор» в окне браузера: тот же вход, цели и чек-ины, что в телефоне.">
+
+  <!-- Приложение закрытое: в поиске странице делать нечего -->
+  <meta name="robots" content="noindex, nofollow">
+  <meta name="theme-color" content="#040E08">
+
+  <link rel="icon" type="image/png" href="../favicon.png">
+
+  <!-- Шрифт, знак и паттерн — те же файлы, что берёт приложение в рамке:
+       грузятся один раз на двоих, сторонних адресов у страницы нет -->
+  <link rel="preload" as="font" type="font/otf"
+        href="../assets/assets/fonts/stolzl_medium.otf" crossorigin>
+
+  <style>
+    @font-face {
+      font-family: 'Stolzl';
+      src: url('../assets/assets/fonts/stolzl_regular.otf') format('opentype');
+      font-weight: 400;
+      font-display: swap;
+    }
+
+    @font-face {
+      font-family: 'Stolzl';
+      src: url('../assets/assets/fonts/stolzl_medium.otf') format('opentype');
+      font-weight: 500;
+      font-display: swap;
+    }
+
+    @font-face {
+      font-family: 'Stolzl';
+      src: url('../assets/assets/fonts/stolzl_bold.otf') format('opentype');
+      font-weight: 700;
+      font-display: swap;
+    }
+
+    :root {
+      /* Палитра приложения — DColors.dark, значения из брендбука */
+      --bg: #040E08;
+      --surface: #091C0E;
+      --surface-2: #0D2415;
+      --surface-3: #122D1C;
+      --accent: #00FE7E;
+      --accent-soft: rgba(0, 254, 126, .13);
+      --accent-border: rgba(0, 254, 126, .22);
+      --card-border: rgba(0, 254, 126, .16);
+      --text: #F0F7F2;
+      --text-2: rgba(240, 247, 242, .62);
+      --hair: rgba(255, 255, 255, .07);
+      --pattern: #072A1C;
+
+      /* Фон светлой темы приложения — под него подстраивается полоса статуса */
+      --app-light-bg: #F3F7F4;
+
+      --font-display: 'Stolzl', 'Segoe UI', system-ui, sans-serif;
+      --font-body: 'Segoe UI Variable Text', 'Segoe UI', system-ui, -apple-system, sans-serif;
+      --font-data: ui-monospace, 'Cascadia Mono', Consolas, monospace;
+
+      --s-1: 4px;
+      --s-2: 8px;
+      --s-3: 12px;
+      --s-4: 16px;
+      --s-5: 24px;
+      --s-6: 40px;
+      --s-7: 64px;
+
+      --ease-out: cubic-bezier(.16, 1, .3, 1);
+      --ease-spring: cubic-bezier(.34, 1.56, .64, 1);
+      --fast: 160ms;
+      --normal: 340ms;
+
+      /* Три плана: фон → элементы управления → телефон */
+      --shadow-raised:
+        inset 0 1px 0 rgba(255, 255, 255, .04),
+        0 10px 24px -14px rgba(0, 24, 12, .9);
+      --shadow-floating:
+        0 1px 2px rgba(0, 0, 0, .6),
+        0 22px 44px -12px rgba(0, 8, 4, .78),
+        0 70px 120px -30px rgba(0, 60, 30, .42);
+
+      /* Корпус. Размер экрана и масштаб выставляет скрипт */
+      --bezel: 12px;
+      --body-radius: 56px;
+      --status-h: 44px;
+      --gesture-h: 22px;
+      --screen-w: 390px;
+      --screen-h: 844px;
+      --k: 1;
+    }
+
+    *, *::before, *::after { box-sizing: border-box; }
+
+    html, body { height: 100%; margin: 0; }
+
+    body {
+      overflow: hidden;
+      background: var(--bg);
+      color: var(--text);
+      font: 15px/1.7 var(--font-body);
+      -webkit-font-smoothing: antialiased;
+    }
+
+    /* ── Узкое окно и настоящий телефон: рамка ни к чему, приложение
+          занимает всё окно ──────────────────────────────────────────── */
+
+    .backdrop, .brand, .panel, .hint, .statusbar, .gesturebar { display: none; }
+
+    .app {
+      position: fixed;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      border: 0;
+      background: var(--bg);
+    }
+
+    .fail {
+      position: fixed;
+      inset: 0;
+      z-index: 2;
+      display: grid;
+      place-content: center;
+      justify-items: center;
+      gap: var(--s-4);
+      padding: var(--s-5);
+      background: var(--bg);
+      text-align: center;
+    }
+
+    .fail[hidden] { display: none; }
+
+    /* Под сообщением остаётся страница ошибки браузера — она светлая
+       и просвечивает на скруглённых углах экрана */
+    .fail:not([hidden]) + .app { visibility: hidden; }
+
+    .fail p {
+      margin: 0;
+      max-width: 30ch;
+      color: var(--text-2);
+      font-size: 14px;
+      line-height: 1.6;
+      text-wrap: balance;
+    }
+
+    /* ── Кнопки и ссылки ─────────────────────────────────────────────── */
+
+    .btn {
+      position: relative;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: var(--s-2);
+      height: 44px;
+      padding: 0 var(--s-4);
+      border: 1px solid var(--card-border);
+      border-radius: 16px;
+      background: var(--surface);
+      box-shadow: var(--shadow-raised);
+      color: var(--text);
+      font: 400 13px/1 var(--font-display);
+      letter-spacing: .01em;
+      cursor: pointer;
+      overflow: hidden;
+      transition: transform var(--fast) var(--ease-spring);
+    }
+
+    /* Подсветка лежит отдельным слоем: меняем его прозрачность,
+       а не цвет самой кнопки */
+    .btn::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: var(--accent-soft);
+      opacity: 0;
+      transition: opacity var(--fast) ease-out;
+    }
+
+    .btn > * { position: relative; }
+
+    .btn__icon { color: var(--accent); transition: transform var(--normal) var(--ease-spring); }
+
+    .btn:hover::before { opacity: 1; }
+    .btn:hover .btn__icon { transform: rotate(90deg); }
+    .btn:active { transform: scale(.97); }
+
+    .btn:focus-visible,
+    .link:focus-visible {
+      outline: 2px solid var(--accent);
+      outline-offset: 3px;
+    }
+
+    .link {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      border-radius: 6px;
+      color: var(--text-2);
+      font: 400 13px/1.4 var(--font-display);
+      text-decoration: underline;
+      text-decoration-color: var(--accent-border);
+      text-underline-offset: 4px;
+    }
+
+    .link__arrow { transition: transform var(--fast) var(--ease-spring); }
+
+    .link:hover { color: var(--text); text-decoration-color: var(--accent); }
+    .link:hover .link__arrow { transform: translate(2px, -2px); }
+    .link:active { opacity: .7; }
+
+    /* ── Окно пошире: телефон на фирменном фоне ──────────────────────── */
+
+    @media (min-width: 520px) {
+      body {
+        background:
+          radial-gradient(90% 70% at 50% 12%, #0A2115 0%, rgba(4, 14, 8, 0) 60%),
+          radial-gradient(46% 58% at 96% 56%, rgba(0, 254, 126, .09) 0%, rgba(0, 254, 126, 0) 72%),
+          radial-gradient(52% 62% at 4% 104%, #07190F 0%, rgba(4, 14, 8, 0) 70%),
+          var(--bg);
+      }
+
+      /* Фон приложения в масштабе монитора: паттерн брендбука и один
+         крупный клин, уходящий за правый край */
+      .backdrop {
+        display: block;
+        position: fixed;
+        inset: 0;
+        z-index: 0;
+        overflow: hidden;
+        pointer-events: none;
+      }
+
+      /* Файл монохромный — работает маской, как и в приложении */
+      .backdrop__pattern {
+        position: absolute;
+        inset: 0;
+        background: var(--pattern);
+        -webkit-mask: url('../assets/assets/brand/pattern.png') top center / cover no-repeat;
+                mask: url('../assets/assets/brand/pattern.png') top center / cover no-repeat;
+      }
+
+      .backdrop__grain {
+        position: absolute;
+        inset: 0;
+        opacity: .07;
+        mix-blend-mode: overlay;
+        background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='220' height='220'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 1  0 0 0 0 1  0 0 0 0 1  0 0 0 .7 0'/></filter><rect width='100%25' height='100%25' filter='url(%23n)'/></svg>");
+      }
+
+      /* Геометрия клина перенесена из приложения точка в точку.
+         Появляется так же, как знак на заставке: снизу вверх. Окно и фигура
+         едут навстречу друг другу, поэтому двигаются только transform */
+      .wedge {
+        --wedge-h: min(68vh, 620px, 78vw);
+        position: absolute;
+        top: 17vh;
+        right: calc(var(--wedge-h) * -.14);
+        height: var(--wedge-h);
+        aspect-ratio: 150 / 260;
+        overflow: hidden;
+        animation: rise-window 1.15s var(--ease-out) .1s both;
+      }
+
+      .wedge__shape {
+        display: block;
+        width: 100%;
+        height: 100%;
+        animation: rise-shape 1.15s var(--ease-out) .1s both;
+      }
+
+      .layout {
+        position: relative;
+        z-index: 1;
+        display: grid;
+        grid-template:
+          "brand panel" auto
+          "stage stage" minmax(0, 1fr)
+          / auto 1fr;
+        height: 100vh;
+        height: 100dvh;
+      }
+
+      .brand {
+        grid-area: brand;
+        display: flex;
+        align-items: center;
+        gap: var(--s-3);
+        padding: var(--s-4) var(--s-5);
+      }
+
+      /* Знак не перерисован: оригинальный файл работает маской */
+      .brand__mark {
+        width: 26px;
+        height: 26px;
+        background: var(--accent);
+        -webkit-mask: url('../brand-mark.png') center / contain no-repeat;
+                mask: url('../brand-mark.png') center / contain no-repeat;
+      }
+
+      /* В самом узком окне с рамкой название не помещается рядом
+         с управлением — остаётся знак */
+      .brand__name {
+        display: none;
+        font: 500 13px/1 var(--font-display);
+        letter-spacing: .18em;
+        text-transform: uppercase;
+      }
+
+      .panel {
+        grid-area: panel;
+        display: flex;
+        align-items: center;
+        justify-content: flex-end;
+        padding: var(--s-3) var(--s-5);
+      }
+
+      .readout, .link { display: none; }
+
+      .controls {
+        display: flex;
+        align-items: center;
+        gap: var(--s-3);
+      }
+
+      .sizes {
+        min-width: 0;
+        margin: 0;
+        padding: 0;
+        border: 0;
+      }
+
+      /* В строке над телефоном заголовок и подписи не помещаются —
+         остаются для программ чтения с экрана */
+      .intro,
+      .sizes legend,
+      .btn__label {
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        overflow: hidden;
+        clip-path: inset(50%);
+        white-space: nowrap;
+      }
+
+      .actions .btn { width: 44px; padding: 0; }
+
+      /* ── Переключатель размера ─────────────────────────────────────── */
+
+      .seg {
+        position: relative;
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        width: 264px;
+        padding: var(--s-1);
+        border-radius: 16px;
+        background: var(--surface);
+        box-shadow: var(--shadow-raised), inset 0 0 0 1px var(--hair);
+      }
+
+      .seg input {
+        position: absolute;
+        opacity: 0;
+        pointer-events: none;
+      }
+
+      .seg label {
+        position: relative;
+        z-index: 1;
+        display: grid;
+        place-items: center;
+        height: 36px;
+        border-radius: 12px;
+        color: var(--text-2);
+        font: 400 13px/1 var(--font-display);
+        cursor: pointer;
+        user-select: none;
+        transition: transform var(--fast) var(--ease-spring);
+      }
+
+      .seg label:hover { color: var(--text); }
+      .seg label:active { transform: scale(.95); }
+
+      .seg input:checked + label { color: var(--accent); font-weight: 500; }
+
+      .seg input:focus-visible + label {
+        outline: 2px solid var(--accent);
+        outline-offset: 2px;
+      }
+
+      .seg__thumb {
+        position: absolute;
+        top: var(--s-1);
+        bottom: var(--s-1);
+        left: var(--s-1);
+        width: calc((100% - 2 * var(--s-1)) / 3);
+        border-radius: 12px;
+        background: var(--surface-3);
+        box-shadow: inset 0 0 0 1px var(--accent-border);
+        transform: translateX(calc(var(--i, 1) * 100%));
+        transition: transform var(--normal) var(--ease-spring);
+      }
+
+      #size-s:checked ~ .seg__thumb { --i: 0; }
+      #size-m:checked ~ .seg__thumb { --i: 1; }
+      #size-l:checked ~ .seg__thumb { --i: 2; }
+
+      /* ── Телефон ───────────────────────────────────────────────────── */
+
+      .stage {
+        grid-area: stage;
+        display: grid;
+        place-items: center;
+        min-height: 0;
+        padding: var(--s-1) var(--s-5) var(--s-5);
+      }
+
+      /* Масштаб не меняет раскладку, поэтому место под телефон держит
+         отдельная обёртка уже уменьшенного размера */
+      .phone-slot {
+        width: calc((var(--screen-w) + 2 * var(--bezel)) * var(--k));
+        height: calc((var(--screen-h) + 2 * var(--bezel)) * var(--k));
+        animation: phone-in .9s var(--ease-out) both;
+      }
+
+      .phone-slot.is-settling { animation: settle .46s var(--ease-spring); }
+
+      .phone {
+        position: relative;
+        width: calc(var(--screen-w) + 2 * var(--bezel));
+        height: calc(var(--screen-h) + 2 * var(--bezel));
+        padding: var(--bezel);
+        border-radius: var(--body-radius);
+        background: linear-gradient(145deg, #1B2420 0%, #0A0F0C 38%, #050806 100%);
+        /* Справа на корпусе — отсвет зелёного клина */
+        box-shadow:
+          inset 0 0 0 1px rgba(255, 255, 255, .15),
+          inset 0 0 0 2.5px #020403,
+          inset -2px 0 3px -1px rgba(0, 254, 126, .28),
+          var(--shadow-floating);
+        transform: scale(var(--k));
+        transform-origin: top left;
+      }
+
+      /* Клавиши громкости и питания */
+      .phone::before,
+      .phone::after {
+        content: '';
+        position: absolute;
+        width: 3px;
+        background: #131A16;
+      }
+
+      .phone::before {
+        left: -3px;
+        top: 148px;
+        height: 34px;
+        border-radius: 2px 0 0 2px;
+        box-shadow: 0 46px 0 #131A16;
+      }
+
+      .phone::after {
+        right: -3px;
+        top: 186px;
+        height: 64px;
+        border-radius: 0 2px 2px 0;
+      }
+
+      .screen {
+        position: relative;
+        display: grid;
+        grid-template-rows: var(--status-h) minmax(0, 1fr) var(--gesture-h);
+        height: 100%;
+        border-radius: calc(var(--body-radius) - var(--bezel));
+        overflow: hidden;
+        background: var(--bg);
+      }
+
+      /* Полосы сверху и снизу — системные зоны телефона. Они же не дают
+         скруглённым углам резать содержимое приложения */
+      .statusbar,
+      .gesturebar {
+        position: relative;
+        isolation: isolate;
+        background: var(--bg);
+      }
+
+      /* Светлая тема приложения: слой проявляется поверх тёмного */
+      .statusbar::before,
+      .gesturebar::before {
+        content: '';
+        position: absolute;
+        inset: 0;
+        z-index: -1;
+        background: var(--app-light-bg);
+        opacity: 0;
+        transition: opacity .2s ease-out;
+      }
+
+      .screen[data-app-theme="light"] .statusbar::before,
+      .screen[data-app-theme="light"] .gesturebar::before { opacity: 1; }
+
+      .statusbar { display: block; grid-row: 1; }
+
+      /* Содержимое в режиме вычитания само темнеет на светлом фоне и плавно
+         идёт за сменой темы. Цвет подобран под зелёный подтон фона: чисто
+         белый после вычитания уходил бы в розовый */
+      .statusbar__row {
+        --ink: #F4FFFA;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        height: 100%;
+        padding: 6px 26px 0 30px;
+        color: var(--ink);
+        mix-blend-mode: difference;
+      }
+
+      .statusbar__time {
+        font: 600 15px/1 var(--font-body);
+        letter-spacing: .01em;
+        font-variant-numeric: tabular-nums;
+      }
+
+      .statusbar__icons {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+      }
+
+      .statusbar__camera {
+        position: absolute;
+        top: 16px;
+        left: 50%;
+        width: 12px;
+        height: 12px;
+        margin-left: -6px;
+        border-radius: 50%;
+        background: #000;
+        box-shadow: inset 0 0 0 2px #0B100D, inset 2px 2px 3px rgba(120, 160, 140, .25);
+      }
+
+      .gesturebar {
+        display: grid;
+        grid-row: 3;
+        place-items: center;
+      }
+
+      .gesturebar i {
+        width: 124px;
+        height: 5px;
+        border-radius: 3px;
+        background: #F4FFFA;
+        opacity: .42;
+        mix-blend-mode: difference;
+      }
+
+      .app,
+      .fail {
+        grid-row: 2;
+        grid-column: 1;
+      }
+
+      .app {
+        position: static;
+        display: block;
+      }
+
+      .fail {
+        position: relative;
+        inset: auto;
+      }
+    }
+
+    @media (min-width: 640px) {
+      .brand__name { display: block; }
+    }
+
+    /* В строке над телефоном хватает места на подпись кнопки */
+    @media (min-width: 760px) {
+      .actions .btn { width: auto; padding: 0 var(--s-4); }
+
+      .btn__label {
+        position: static;
+        width: auto;
+        height: auto;
+        overflow: visible;
+        clip-path: none;
+      }
+    }
+
+    /* ── Монитор: управление слева, телефон по центру, клин справа ───── */
+
+    @media (min-width: 1180px) {
+      .layout {
+        --gap: clamp(32px, 5vw, 88px);
+        grid-template:
+          "brand stage ." auto
+          "panel stage ." minmax(0, 1fr)
+          "hint  stage ." auto
+          / minmax(0, 1fr) auto minmax(0, 1fr);
+      }
+
+      /* Знак, управление и подсказка стоят одной колонкой у телефона,
+         а не разбегаются по углам широкого монитора */
+      .brand,
+      .panel,
+      .hint {
+        justify-self: end;
+        width: min(340px, 100% - var(--s-6) - var(--gap));
+        margin-right: var(--gap);
+      }
+
+      .brand { padding: 36px 0 0; }
+
+      .panel {
+        flex-direction: column;
+        align-items: stretch;
+        justify-content: center;
+        gap: var(--s-6);
+        padding: var(--s-5) 0;
+      }
+
+      .intro {
+        position: static;
+        width: auto;
+        height: auto;
+        overflow: visible;
+        clip-path: none;
+        white-space: normal;
+      }
+
+      .intro h1 {
+        margin: 0 0 var(--s-4);
+        font: 700 clamp(30px, 1.6vw + 12px, 44px) / 1.04 var(--font-display);
+        letter-spacing: -.03em;
+        text-wrap: balance;
+      }
+
+      .intro p {
+        margin: 0;
+        max-width: 34ch;
+        color: var(--text-2);
+        text-wrap: balance;
+      }
+
+      .controls {
+        flex-direction: column;
+        align-items: stretch;
+        gap: var(--s-5);
+      }
+
+      .sizes legend {
+        position: static;
+        width: auto;
+        height: auto;
+        overflow: visible;
+        clip-path: none;
+        margin-bottom: var(--s-3);
+        padding: 0;
+        color: var(--text-2);
+        font: 400 11px/1 var(--font-display);
+        letter-spacing: .14em;
+        text-transform: uppercase;
+      }
+
+      .seg { width: 100%; }
+
+      .readout {
+        display: block;
+        margin: var(--s-3) 0 0;
+        color: var(--text-2);
+        font: 12px/1.4 var(--font-data);
+        font-variant-numeric: tabular-nums;
+      }
+
+      .actions {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: var(--s-4) var(--s-5);
+      }
+
+      .link { display: inline-flex; }
+
+      .hint {
+        grid-area: hint;
+        display: block;
+        margin-block: 0;
+        padding: 0 0 36px;
+        color: var(--text-2);
+        font-size: 13px;
+        line-height: 1.5;
+      }
+
+      .stage { padding: 28px 0; }
+
+      /* Появление по очереди: телефон, затем то, что слева */
+      .intro, .controls, .hint { animation: fade-up .7s var(--ease-out) both; }
+      .intro { animation-delay: .18s; }
+      .controls { animation-delay: .26s; }
+      .hint { animation-delay: .34s; }
+    }
+
+    /* Низкое окно или крупный масштаб браузера: прокрутки у страницы нет,
+       поэтому слева остаётся только то, чем управляют */
+    @media (min-width: 1180px) and (max-height: 540px) {
+      .intro p, .hint { display: none; }
+    }
+
+    @media (min-width: 1180px) and (max-height: 400px) {
+      .intro {
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        overflow: hidden;
+        clip-path: inset(50%);
+        white-space: nowrap;
+      }
+    }
+
+    @keyframes rise-window { from { transform: translateY(100%); } }
+    @keyframes rise-shape  { from { transform: translateY(-100%); } }
+
+    @keyframes phone-in {
+      from { opacity: 0; transform: translateY(28px) scale(.985); }
+    }
+
+    @keyframes settle {
+      from { transform: scale(.975); }
+    }
+
+    @keyframes fade-up {
+      from { opacity: 0; transform: translateY(12px); }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after {
+        animation: none !important;
+        transition: none !important;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="backdrop" aria-hidden="true">
+    <div class="backdrop__pattern"></div>
+    <div class="wedge">
+      <svg class="wedge__shape" viewBox="0 0 150 260" preserveAspectRatio="none">
+        <polygon points="82.5,0 150,161.2 150,260 45,72.8 45,0" fill="#00FE7E" fill-opacity=".85"/>
+        <polygon points="93,171.6 150,254.8 150,260 93,202.8" fill="#00FE7E" fill-opacity=".35"/>
+      </svg>
+    </div>
+    <div class="backdrop__grain"></div>
+  </div>
+
+  <div class="layout">
+    <header class="brand">
+      <span class="brand__mark" aria-hidden="true"></span>
+      <span class="brand__name">Достигатор</span>
+    </header>
+
+    <aside class="panel" aria-label="Настройки просмотра">
+      <div class="intro">
+        <h1>Приложение на&nbsp;компьютере</h1>
+        <p>Тот же Достигатор, что в&nbsp;телефоне: один вход, те же цели и&nbsp;чек-ины.</p>
+      </div>
+
+      <div class="controls">
+        <fieldset class="sizes">
+          <legend>Размер телефона</legend>
+          <div class="seg">
+            <input type="radio" name="size" id="size-s" value="s">
+            <label for="size-s">Малый</label>
+            <input type="radio" name="size" id="size-m" value="m" checked>
+            <label for="size-m">Средний</label>
+            <input type="radio" name="size" id="size-l" value="l">
+            <label for="size-l">Большой</label>
+            <span class="seg__thumb" aria-hidden="true"></span>
+          </div>
+          <p class="readout" id="readout">390 × 844</p>
+        </fieldset>
+
+        <div class="actions">
+          <button class="btn" id="restart" type="button" title="Перезапустить приложение">
+            <svg class="btn__icon" viewBox="0 0 16 16" width="16" height="16" fill="none"
+                 stroke="currentColor" stroke-width="1.6" stroke-linecap="round"
+                 stroke-linejoin="round" aria-hidden="true">
+              <path d="M13.5 8a5.5 5.5 0 1 1-1.6-3.9"/>
+              <path d="M13.5 2.5v3h-3"/>
+            </svg>
+            <span class="btn__label">Перезапустить</span>
+          </button>
+
+          <a class="link" href="../" target="_blank" rel="noopener">
+            Открыть без рамки
+            <svg class="link__arrow" viewBox="0 0 10 10" width="10" height="10" fill="none"
+                 stroke="currentColor" stroke-width="1.5" stroke-linecap="round"
+                 stroke-linejoin="round" aria-hidden="true">
+              <path d="M2 8 8 2M3.5 2H8v4.5"/>
+            </svg>
+          </a>
+        </div>
+      </div>
+    </aside>
+
+    <main class="stage" id="stage">
+      <div class="phone-slot" id="slot">
+        <div class="phone">
+          <div class="screen" id="screen" data-app-theme="dark">
+            <div class="statusbar" aria-hidden="true">
+              <div class="statusbar__row">
+                <span class="statusbar__time" id="clock">9:41</span>
+                <span class="statusbar__icons">
+                  <svg viewBox="0 0 17 11" width="17" height="11" fill="currentColor">
+                    <rect x="0" y="7" width="3" height="4" rx=".8"/>
+                    <rect x="4.6" y="5" width="3" height="6" rx=".8"/>
+                    <rect x="9.2" y="2.5" width="3" height="8.5" rx=".8"/>
+                    <rect x="13.8" y="0" width="3" height="11" rx=".8"/>
+                  </svg>
+                  <svg viewBox="0 0 16 12" width="16" height="12" fill="none"
+                       stroke="currentColor" stroke-width="1.7" stroke-linecap="round">
+                    <path d="M1.5 4.6a9.2 9.2 0 0 1 13 0"/>
+                    <path d="M4 7.2a5.7 5.7 0 0 1 8 0"/>
+                    <circle cx="8" cy="10" r="1" fill="currentColor" stroke="none"/>
+                  </svg>
+                  <svg viewBox="0 0 26 12" width="26" height="12" fill="none">
+                    <rect x=".6" y=".6" width="21.8" height="10.8" rx="3.2"
+                          stroke="currentColor" stroke-opacity=".45" stroke-width="1.2"/>
+                    <rect x="2.3" y="2.3" width="18.4" height="7.4" rx="1.8" fill="currentColor"/>
+                    <path d="M24 4v4c.8-.3 1.4-1.1 1.4-2s-.6-1.7-1.4-2Z"
+                          fill="currentColor" fill-opacity=".5"/>
+                  </svg>
+                </span>
+              </div>
+              <span class="statusbar__camera"></span>
+            </div>
+
+            <div class="fail" id="fail" role="alert" hidden>
+              <p>Не удалось загрузить приложение. Проверьте связь.</p>
+              <button class="btn" id="fail-restart" type="button">
+                <span>Перезапустить</span>
+              </button>
+            </div>
+
+            <iframe class="app" id="app" src="../" title="Приложение «Достигатор»"></iframe>
+
+            <div class="gesturebar" aria-hidden="true"><i></i></div>
+          </div>
+        </div>
+      </div>
+    </main>
+
+    <p class="hint">Листайте колёсиком мыши, нажимайте кликом.</p>
+  </div>
+
+  <script>
+    (function () {
+      var SIZES = {
+        s: { w: 360, h: 780 },
+        m: { w: 390, h: 844 },
+        l: { w: 430, h: 932 }
+      };
+
+      // Должны совпадать с --bezel и точкой перехода в стилях
+      var BEZEL = 12;
+      var FRAMED = '(min-width: 520px)';
+
+      // Ниже этой высоты экран не сжимаем — дальше уменьшается масштаб,
+      // иначе приложению не хватит места на собственную вёрстку
+      var MIN_SCREEN_H = 640;
+
+      var SIZE_KEY = 'desktop.size';
+      // Так тему записывает плагин shared_preferences в браузере
+      var THEME_KEY = 'flutter.theme_mode';
+
+      var root = document.documentElement;
+      var stage = document.getElementById('stage');
+      var slot = document.getElementById('slot');
+      var display = document.getElementById('screen');
+      var frame = document.getElementById('app');
+      var fail = document.getElementById('fail');
+      var clock = document.getElementById('clock');
+      var readout = document.getElementById('readout');
+      var radios = document.querySelectorAll('input[name="size"]');
+      var framed = window.matchMedia(FRAMED);
+
+      // Приватное окно или запрет на хранилище: страница работает и без
+      // памяти о размере, а тема остаётся тёмной
+      function load(key) {
+        try { return localStorage.getItem(key); } catch (e) { return null; }
+      }
+
+      function save(key, value) {
+        try { localStorage.setItem(key, value); } catch (e) { /* не сохранилось — не беда */ }
+      }
+
+      function currentSize() {
+        for (var i = 0; i < radios.length; i++) {
+          if (radios[i].checked) return radios[i].value;
+        }
+        return 'm';
+      }
+
+      // Сначала телефон укорачивается, как бывают короче сами телефоны, —
+      // так картинка остаётся чёткой. Масштаб включается, только когда
+      // короче уже некуда.
+      function fit() {
+        if (!framed.matches) return;
+
+        var size = SIZES[currentSize()];
+        var style = getComputedStyle(stage);
+        var room = stage.clientHeight
+          - parseFloat(style.paddingTop) - parseFloat(style.paddingBottom);
+
+        var screenH = Math.round(
+          Math.max(MIN_SCREEN_H, Math.min(size.h, room - 2 * BEZEL))
+        );
+        var k = Math.min(1, room / (screenH + 2 * BEZEL));
+
+        root.style.setProperty('--screen-w', size.w + 'px');
+        root.style.setProperty('--screen-h', screenH + 'px');
+        root.style.setProperty('--k', k.toFixed(4));
+
+        readout.textContent = size.w + ' × ' + screenH + ' px'
+          + (k < 1 ? ' · уменьшено до ' + Math.round(k * 100) + ' %' : '');
+      }
+
+      function settle() {
+        slot.classList.remove('is-settling');
+        // Чтение размера заставляет браузер начать анимацию заново
+        void slot.offsetWidth;
+        slot.classList.add('is-settling');
+      }
+
+      function tick() {
+        var now = new Date();
+        clock.textContent = now.getHours() + ':' + ('0' + now.getMinutes()).slice(-2);
+        setTimeout(tick, (60 - now.getSeconds()) * 1000 - now.getMilliseconds() + 50);
+      }
+
+      function storedTheme() {
+        var raw = load(THEME_KEY);
+        return raw && raw.indexOf('light') !== -1 ? 'light' : 'dark';
+      }
+
+      // Заставка приложения всегда тёмная: светлую полосу статуса включаем
+      // только после первого кадра, иначе она мигнёт над тёмным экраном.
+      // Страницу ошибки сервера за приложение не принимаем: у неё нет
+      // загрузчика Flutter.
+      function appStarted() {
+        try {
+          var doc = frame.contentDocument;
+          if (!doc.querySelector('script[src="flutter_bootstrap.js"]')) return false;
+
+          var boot = doc.getElementById('boot');
+          return !boot || boot.classList.contains('done');
+        } catch (e) {
+          return false;
+        }
+      }
+
+      function syncTheme() {
+        display.dataset.appTheme = appStarted() ? storedTheme() : 'dark';
+      }
+
+      function restart() {
+        // Кнопка в сообщении об ошибке сейчас исчезнет: фокус передаём
+        // приложению, иначе он потеряется
+        var fromMessage = fail.contains(document.activeElement);
+
+        fail.hidden = true;
+        display.dataset.appTheme = 'dark';
+        if (fromMessage) frame.focus();
+
+        try {
+          frame.contentWindow.location.reload();
+        } catch (e) {
+          // Внутри страница ошибки браузера — к ней доступа нет,
+          // загружаем адрес заново
+          frame.src = frame.getAttribute('src');
+        }
+      }
+
+      frame.addEventListener('load', function () {
+        var doc = null;
+        try { doc = frame.contentDocument; } catch (e) { doc = null; }
+
+        // Документ недоступен, когда вместо приложения открылась страница
+        // ошибки браузера: нет сети или сервер не ответил
+        fail.hidden = !!doc;
+
+        if (!doc) {
+          // Приложение могло перезагрузиться само и не подняться: светлая
+          // полоса над тёмным сообщением остаться не должна
+          display.dataset.appTheme = 'dark';
+          return;
+        }
+
+        frame.contentWindow.addEventListener('flutter-first-frame', syncTheme);
+        syncTheme();
+      });
+
+      // Переключатель темы в шапке приложения пишет выбор в хранилище —
+      // соседний документ узнаёт об этом из события
+      window.addEventListener('storage', function (event) {
+        // Ключа нет, когда хранилище очищено целиком
+        if (event.key === null || event.key === THEME_KEY) syncTheme();
+      });
+
+      document.getElementById('restart').addEventListener('click', restart);
+      document.getElementById('fail-restart').addEventListener('click', restart);
+
+      var saved = load(SIZE_KEY);
+      var hasSaved = Object.prototype.hasOwnProperty.call(SIZES, saved);
+      for (var i = 0; i < radios.length; i++) {
+        if (hasSaved) radios[i].checked = radios[i].value === saved;
+
+        radios[i].addEventListener('change', function () {
+          save(SIZE_KEY, currentSize());
+          fit();
+          settle();
+        });
+      }
+
+      if ('ResizeObserver' in window) {
+        new ResizeObserver(fit).observe(stage);
+      } else {
+        window.addEventListener('resize', fit);
+      }
+
+      fit();
+      tick();
+    })();
+  </script>
+</body>
+</html>

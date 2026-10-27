@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    RELEASE. Открытый HTTP запрещён: токен доступа и персональные данные
+    резидента не должны ходить по сети в открытом виде.
+
+    Боевой бэкенд обязан работать по HTTPS. Если сервер пока отдаёт HTTP,
+    правильный шаг — выпустить сертификат (Let's Encrypt бесплатен),
+    а не ослаблять этот файл.
+
+    Для сборок под разработку действует src/debug/res/xml/network_security_config.xml,
+    где открытый HTTP разрешён.
+-->
+<network-security-config>
+    <base-config cleartextTrafficPermitted="false" />
+</network-security-config>

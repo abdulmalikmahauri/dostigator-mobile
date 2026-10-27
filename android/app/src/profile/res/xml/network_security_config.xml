@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    PROFILE. Сборка с release-оптимизацией, но с доступом к локальному
+    серверу разработки по открытому HTTP. Нужна, чтобы дать приложение
+    на телефон для примерки, не выкладывая бэкенд наружу и не раздувая
+    файл отладочными символами.
+
+    В release этот файл не попадает: там действует src/main, где открытый
+    HTTP запрещён.
+-->
+<network-security-config>
+    <base-config cleartextTrafficPermitted="true" />
+</network-security-config>
